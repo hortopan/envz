@@ -21,6 +21,9 @@ pub enum EnvzError {
     #[error("Invalid vault file: {0}")]
     InvalidVault(String),
 
+    #[error("Invalid variable name '{0}': must match [A-Za-z_][A-Za-z0-9_]*")]
+    InvalidKey(String),
+
     #[error("Failed to parse env file: {0}")]
     ParseError(String),
 

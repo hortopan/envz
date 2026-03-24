@@ -1,5 +1,11 @@
+#[macro_use]
+extern crate litcrypt;
+
+use_litcrypt!();
+
 mod biometric;
 mod cli;
+mod codesign;
 mod commands;
 mod crypto;
 mod env_filter;
@@ -14,11 +20,7 @@ fn main() {
     let cli = Cli::parse();
 
     let result = match cli.command {
-        Commands::Init {
-            file,
-            no_biometric,
-            force,
-        } => commands::init::execute(file, !no_biometric, force),
+        Commands::Init { file, force } => commands::init::execute(file, force),
         Commands::Run { command } => commands::run::execute(&command),
         Commands::Unsafe { command } => commands::unsafe_cmd::execute(&command),
         Commands::Set { pair } => commands::set::execute(&pair),

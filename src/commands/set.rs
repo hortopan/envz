@@ -7,11 +7,8 @@ pub fn execute(pair: &str) -> Result<()> {
     };
 
     let key = key.trim().to_string();
+    store::validate_key(&key)?;
     let value = value.to_string();
-
-    if key.is_empty() {
-        return Err(EnvzError::ParseError("Key cannot be empty".into()));
-    }
 
     let mut vault = store::read_vault()?;
     let (mut data, master_key) = store::open_vault(&vault)?;

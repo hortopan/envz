@@ -5,13 +5,16 @@ pub fn execute() -> Result<()> {
     let vault = store::read_vault()?;
     let (data, _) = store::open_vault(&vault)?;
 
-    let mut keys: Vec<&str> = data.keys().map(|k| k.as_str()).collect();
-    keys.sort();
-
-    for key in &keys {
-        let value = &data[*key];
-        let escaped = value.replace('\'', "'\\''");
-        println!("export {key}='{escaped}'");
+    for (key, value) in &data {
+        // Use $'...' syntax to safely handle all special characters
+        let escaped = value
+            .replace('\\', "\\\\")
+            .replace('\'', "\\'")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
+            .replace('\0', "\\0");
+        println!("export {key}=$'{escaped}'");
     }
 
     Ok(())

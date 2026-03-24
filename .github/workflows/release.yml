@@ -10,7 +10,7 @@ on:
 
 # Required GitHub Secrets:
 #   APPLE_TEAM_ID              - Apple Developer Team ID (e.g., U5QRGK7YUQ)
-#   BUNDLE_ID                  - App bundle identifier (e.g., com.gnarlylabs.envz)
+#   BUNDLE_ID                  - App bundle identifier (e.g., net.gnarlylabs.envz)
 #   APPLE_SIGNING_IDENTITY     - Full codesign identity (e.g., "Developer ID Application: Your Name (U5QRGK7YUQ)")
 #   APPLE_CERTIFICATE          - Base64-encoded .p12 Developer ID Application certificate
 #   APPLE_CERTIFICATE_PASSWORD - Password for the .p12 certificate
@@ -37,6 +37,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
+        env:
+          ENVZ_APP_SECRET: ${{ secrets.ENVZ_APP_SECRET }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Import signing certificate

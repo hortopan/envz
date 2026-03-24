@@ -19,10 +19,7 @@ const ERR_SEC_USER_CANCELED: i32 = -128;
 
 unsafe extern "C" {
     static kSecAttrAccess: CFTypeRef;
-    fn SecTrustedApplicationCreateFromPath(
-        path: *const u8,
-        app: *mut CFTypeRef,
-    ) -> i32;
+    fn SecTrustedApplicationCreateFromPath(path: *const u8, app: *mut CFTypeRef) -> i32;
     fn SecAccessCreate(
         descriptor: CFTypeRef,
         trusted_list: CFTypeRef,
@@ -46,25 +43,29 @@ unsafe fn dict_set(
     dict.add(&key, &value);
 }
 
-/// Create a SecAccess that allows any application to read the keychain item
-/// without triggering a password prompt. This is safe because:
-/// - The vault data is AES-256-GCM encrypted with the stored key
-/// - Biometric vaults require Touch ID authentication before keychain access
-/// - The login keychain is only unlocked while the user is logged in
-fn create_permissive_access() -> Option<CFTypeRef> {
+/// Create a SecAccess that only allows this signed binary to read the keychain
+/// item without a password prompt. Other applications will trigger a macOS
+/// password dialog when attempting to access the key.
+fn create_self_only_access() -> Option<CFTypeRef> {
     unsafe {
-        let mut trusted_app: CFTypeRef = ptr::null_mut();
-        let status = SecTrustedApplicationCreateFromPath(ptr::null(), &mut trusted_app);
+        let exe_path = std::env::current_exe().ok()?;
+        let exe_path_c = std::ffi::CString::new(exe_path.to_str()?).ok()?;
+
+        let mut trusted_self: CFTypeRef = ptr::null_mut();
+        let status = SecTrustedApplicationCreateFromPath(
+            exe_path_c.as_ptr() as *const u8,
+            &mut trusted_self,
+        );
         if status != errSecSuccess {
             return None;
         }
 
-        let values = [trusted_app as *const c_void];
+        let values = [trusted_self];
         let trusted_list = CFArrayCreate(
             ptr::null_mut(),
             values.as_ptr(),
             1,
-            &kCFTypeArrayCallBacks as *const _ as *const c_void,
+            &kCFTypeArrayCallBacks as *const _,
         );
 
         let label = CFString::new("envz vault key");
@@ -76,7 +77,7 @@ fn create_permissive_access() -> Option<CFTypeRef> {
         );
 
         core_foundation::base::CFRelease(trusted_list);
-        core_foundation::base::CFRelease(trusted_app);
+        core_foundation::base::CFRelease(trusted_self);
 
         if status == errSecSuccess {
             Some(access)
@@ -87,7 +88,6 @@ fn create_permissive_access() -> Option<CFTypeRef> {
 }
 
 /// Store the master key in the macOS Keychain (file-based keychain, no entitlements required).
-/// Biometric authentication is handled separately via the `biometric` module.
 pub fn store_key(vault_id: &str, key: &[u8]) -> Result<()> {
     // Remove any stale entry first (ignore errors)
     let _ = delete_key(vault_id);
@@ -98,7 +98,11 @@ pub fn store_key(vault_id: &str, key: &[u8]) -> Result<()> {
 
     unsafe {
         let mut dict = CFMutableDictionary::new();
-        dict_set(&mut dict, kSecClass as *const c_void, kSecClassGenericPassword as *const c_void);
+        dict_set(
+            &mut dict,
+            kSecClass as *const c_void,
+            kSecClassGenericPassword as *const c_void,
+        );
         dict_set(
             &mut dict,
             kSecAttrService as *const c_void,
@@ -115,9 +119,9 @@ pub fn store_key(vault_id: &str, key: &[u8]) -> Result<()> {
             key_data.as_concrete_TypeRef() as *const c_void,
         );
 
-        // Allow any local application to access this item without a password prompt
-        if let Some(access) = create_permissive_access() {
-            dict_set(&mut dict, kSecAttrAccess as *const c_void, access);
+        // Only allow this signed binary to access without a password prompt
+        if let Some(access) = create_self_only_access() {
+            dict_set(&mut dict, kSecAttrAccess, access);
             core_foundation::base::CFRelease(access);
         }
 
@@ -138,7 +142,11 @@ pub fn retrieve_key(vault_id: &str) -> Result<Vec<u8>> {
 
     unsafe {
         let mut dict = CFMutableDictionary::new();
-        dict_set(&mut dict, kSecClass as *const c_void, kSecClassGenericPassword as *const c_void);
+        dict_set(
+            &mut dict,
+            kSecClass as *const c_void,
+            kSecClassGenericPassword as *const c_void,
+        );
         dict_set(
             &mut dict,
             kSecAttrService as *const c_void,
@@ -183,7 +191,11 @@ pub fn delete_key(vault_id: &str) -> Result<()> {
 
     unsafe {
         let mut dict = CFMutableDictionary::new();
-        dict_set(&mut dict, kSecClass as *const c_void, kSecClassGenericPassword as *const c_void);
+        dict_set(
+            &mut dict,
+            kSecClass as *const c_void,
+            kSecClassGenericPassword as *const c_void,
+        );
         dict_set(
             &mut dict,
             kSecAttrService as *const c_void,

@@ -1,6 +1,6 @@
 # envz
 
-Secure environment variable management for macOS. Encrypts secrets at rest using AES-256-GCM and stores decryption keys in your macOS Keychain with optional Touch ID authentication.
+Secure environment variable management for macOS. Encrypts secrets at rest using AES-256-GCM and stores decryption keys in your macOS Keychain with Touch ID authentication.
 
 ## Why envz?
 
@@ -10,11 +10,13 @@ In the age of AI agents and LLMs, your environment variables are more exposed th
 
 - **AES-256-GCM encryption** — secrets never stored as plaintext
 - **OS Keychain storage** — decryption keys live in macOS Keychain
-- **Touch ID support** — optional biometric authentication on macOS
+- **Touch ID required** — biometric authentication on every vault access
 - **Process isolation** — inject secrets only into the processes that need them
 - **Safe mode** — run untrusted commands (LLM agents, scripts) with filtered environment variables
 
-> **Platform:** macOS only (requires Keychain and optionally Touch ID)
+![envz Touch ID prompt](media/screenshot.png)
+
+> **Platform:** macOS only (requires Keychain and Touch ID)
 
 ## Installation
 
@@ -86,17 +88,29 @@ source <(envz unenv)
 
 ### Options
 
-- `--no-biometric` — disable Touch ID during `init`
 - `--force` — overwrite existing vault during `init`
 
 ## Security model
 
-- Secrets are encrypted with **AES-256-GCM** (authenticated encryption)
-- Each encryption uses a unique random 12-byte nonce
-- The master key is stored in the **macOS Keychain**, not on disk
-- The vault is bound to its absolute path (moving it invalidates it)
-- Decryption happens in-memory only — secrets are never written to disk unencrypted
-- Sensitive memory is zeroized after use
+> **Important:** envz is a convenience tool for local development, not a vault for production secrets. It raises the bar compared to plaintext `.env` files, but it is not — and does not try to be — a hardened secrets manager. Your production secrets should live in a proper secrets manager (AWS Secrets Manager, HashiCorp Vault, 1Password, etc.), be scoped with least-privilege IAM policies, and rotated regularly. If a key leaks, **revoke and rotate it** — no amount of local encryption changes that.
+
+What envz *does* give you:
+
+- **AES-256-GCM encryption** at rest — secrets aren't sitting in plaintext on disk
+- **macOS Keychain + Touch ID** — the decryption seed requires biometric auth, so a stolen `.envz` file alone is useless
+- **Code-signature binding** — the encryption key is derived from the binary's signing identity, so a different (or unsigned) binary can't decrypt
+- **Build-time app secret** — an additional secret baked into the binary (encrypted via litcrypt, not visible with `strings`) is mixed into key derivation
+- **Process isolation** — secrets are injected only into processes that need them, and the `unsafe` command strips them entirely
+- **Zeroized memory** — sensitive buffers are wiped after use
+
+What envz *doesn't* protect against:
+
+- A compromised machine with root access
+- Memory inspection of a running process
+- An attacker who has both the binary and access to your Keychain
+- Keys that have already been leaked — **rotate them**
+
+The goal is simple: make it harder for secrets to accidentally end up in logs, agent contexts, shell history, or git commits during day-to-day development.
 
 ### The `unsafe` command
 

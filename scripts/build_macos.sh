@@ -8,7 +8,7 @@ RELEASE_DIR="$PROJECT_DIR/target/release"
 # Configuration from environment variables
 # SIGNING_IDENTITY - Developer ID Application certificate name or SHA-1 hash
 # APPLE_TEAM_ID    - Apple Developer Team ID
-# BUNDLE_ID        - App bundle identifier (e.g., com.example.envz)
+# BUNDLE_ID        - App bundle identifier (e.g., net.gnarlylabs.envz)
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-${1:-}}"
 APPLE_TEAM_ID="${APPLE_TEAM_ID:-}"
 BUNDLE_ID="${BUNDLE_ID:-}"
@@ -17,9 +17,11 @@ BUNDLE_ID="${BUNDLE_ID:-}"
 ENTITLEMENTS="$PROJECT_DIR/entitlements.plist"
 ENTITLEMENTS_TEMP="$RELEASE_DIR/entitlements.plist"
 
-# Replace placeholders in Info.plist
+# Replace placeholders in Info.plist (stored in a temp dir, NOT next to the binary,
+# because codesign auto-discovers Info.plist adjacent to the binary and embeds a
+# reference — deleting it afterwards would invalidate the signature)
 INFO_PLIST="$PROJECT_DIR/bundle/Info.plist"
-INFO_PLIST_TEMP="$RELEASE_DIR/Info.plist"
+INFO_PLIST_TEMP="$(mktemp -d)/Info.plist"
 
 echo "==> Building release binary..."
 cd "$PROJECT_DIR"
@@ -43,7 +45,7 @@ fi
 
 if [ -n "$SIGNING_IDENTITY" ]; then
     echo "==> Signing with: $SIGNING_IDENTITY"
-    codesign -f -s "$SIGNING_IDENTITY" --options runtime --entitlements "$ENTITLEMENTS_TEMP" "$RELEASE_DIR/envz"
+    codesign -f -s "$SIGNING_IDENTITY" --options runtime --timestamp --entitlements "$ENTITLEMENTS_TEMP" "$RELEASE_DIR/envz"
 
     echo "==> Verifying..."
     codesign -dvv "$RELEASE_DIR/envz" 2>&1 | grep -E "Authority|Identifier"

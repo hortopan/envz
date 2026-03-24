@@ -8,6 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  ENVZ_APP_SECRET: ${{ secrets.ENVZ_APP_SECRET }}
 
 jobs:
   check:

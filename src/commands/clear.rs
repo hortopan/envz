@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use dialoguer::Confirm;
 
@@ -19,14 +19,14 @@ pub fn execute() -> Result<()> {
         .with_prompt(format!("Delete all {count} variable(s) from the vault?"))
         .default(false)
         .interact()
-        .map_err(|e| EnvzError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+        .map_err(|e| EnvzError::Io(std::io::Error::other(e)))?;
 
     if !confirmed {
         eprintln!("Aborted.");
         return Ok(());
     }
 
-    let empty: HashMap<String, String> = HashMap::new();
+    let empty: BTreeMap<String, String> = BTreeMap::new();
     store::seal_vault(&mut vault, &master_key, &empty)?;
     store::write_vault(&vault)?;
 

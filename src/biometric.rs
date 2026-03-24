@@ -1,7 +1,7 @@
 use crate::error::{EnvzError, Result};
 use core_foundation::base::TCFType;
 use core_foundation::string::CFString;
-use std::ffi::c_void;
+use std::ffi::{c_char, c_void};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 #[link(name = "LocalAuthentication", kind = "framework")]
@@ -9,8 +9,8 @@ unsafe extern "C" {}
 
 #[link(name = "objc", kind = "dylib")]
 unsafe extern "C" {
-    fn objc_getClass(name: *const u8) -> *mut c_void;
-    fn sel_registerName(name: *const u8) -> *mut c_void;
+    fn objc_getClass(name: *const c_char) -> *mut c_void;
+    fn sel_registerName(name: *const c_char) -> *mut c_void;
     fn objc_msgSend();
 }
 
@@ -28,15 +28,15 @@ const LA_POLICY_BIOMETRICS: i64 = 1; // LAPolicyDeviceOwnerAuthenticationWithBio
 /// Check if Touch ID is available on this system.
 pub fn is_available() -> bool {
     unsafe {
-        let class = objc_getClass(b"LAContext\0".as_ptr());
+        let class = objc_getClass(c"LAContext".as_ptr());
         if class.is_null() {
             return false;
         }
 
-        let sel_alloc = sel_registerName(b"alloc\0".as_ptr());
-        let sel_init = sel_registerName(b"init\0".as_ptr());
-        let sel_can = sel_registerName(b"canEvaluatePolicy:error:\0".as_ptr());
-        let sel_release = sel_registerName(b"release\0".as_ptr());
+        let sel_alloc = sel_registerName(c"alloc".as_ptr());
+        let sel_init = sel_registerName(c"init".as_ptr());
+        let sel_can = sel_registerName(c"canEvaluatePolicy:error:".as_ptr());
+        let sel_release = sel_registerName(c"release".as_ptr());
 
         let alloc: extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void =
             std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
@@ -48,7 +48,13 @@ pub fn is_available() -> bool {
             std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
 
         let obj = alloc(class, sel_alloc);
+        if obj.is_null() {
+            return false;
+        }
         let obj = init(obj, sel_init);
+        if obj.is_null() {
+            return false;
+        }
 
         let mut error: *mut c_void = std::ptr::null_mut();
         let result = can_evaluate(obj, sel_can, LA_POLICY_BIOMETRICS, &mut error);
@@ -60,18 +66,17 @@ pub fn is_available() -> bool {
 /// Authenticate with Touch ID. Blocks until the user responds.
 pub fn authenticate(reason: &str) -> Result<()> {
     unsafe {
-        let class = objc_getClass(b"LAContext\0".as_ptr());
+        let class = objc_getClass(c"LAContext".as_ptr());
         if class.is_null() {
             return Err(EnvzError::Keychain(
                 "LocalAuthentication framework not available".into(),
             ));
         }
 
-        let sel_alloc = sel_registerName(b"alloc\0".as_ptr());
-        let sel_init = sel_registerName(b"init\0".as_ptr());
-        let sel_evaluate =
-            sel_registerName(b"evaluatePolicy:localizedReason:reply:\0".as_ptr());
-        let sel_release = sel_registerName(b"release\0".as_ptr());
+        let sel_alloc = sel_registerName(c"alloc".as_ptr());
+        let sel_init = sel_registerName(c"init".as_ptr());
+        let sel_evaluate = sel_registerName(c"evaluatePolicy:localizedReason:reply:".as_ptr());
+        let sel_release = sel_registerName(c"release".as_ptr());
 
         let alloc: extern "C" fn(*mut c_void, *mut c_void) -> *mut c_void =
             std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
@@ -83,7 +88,13 @@ pub fn authenticate(reason: &str) -> Result<()> {
             std::mem::transmute(objc_msgSend as unsafe extern "C" fn());
 
         let obj = alloc(class, sel_alloc);
+        if obj.is_null() {
+            return Err(EnvzError::Keychain("Failed to allocate LAContext".into()));
+        }
         let obj = init(obj, sel_init);
+        if obj.is_null() {
+            return Err(EnvzError::Keychain("Failed to initialize LAContext".into()));
+        }
 
         let semaphore = dispatch_semaphore_create(0);
         let success = AtomicBool::new(false);

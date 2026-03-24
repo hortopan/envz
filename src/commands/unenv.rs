@@ -5,10 +5,7 @@ pub fn execute() -> Result<()> {
     let vault = store::read_vault()?;
     let (data, _) = store::open_vault(&vault)?;
 
-    let mut keys: Vec<&str> = data.keys().map(|k| k.as_str()).collect();
-    keys.sort();
-
-    for key in &keys {
+    for key in data.keys() {
         println!("unset {key}");
     }
 

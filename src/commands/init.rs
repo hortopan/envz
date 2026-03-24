@@ -1,5 +1,8 @@
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fs;
+use std::path::PathBuf;
+
+use zeroize::Zeroize;
 
 use crate::biometric;
 use crate::crypto;
@@ -7,44 +10,59 @@ use crate::error::{EnvzError, Result};
 use crate::keychain;
 use crate::store;
 
-pub fn execute(file: Option<String>, biometric_flag: bool, force: bool) -> Result<()> {
+pub fn execute(file: Option<PathBuf>, force: bool) -> Result<()> {
     if store::vault_exists() && !force {
         return Err(EnvzError::VaultAlreadyExists);
     }
 
-    // If biometric requested, verify Touch ID is available
-    if biometric_flag && !biometric::is_available() {
+    if !biometric::is_available() {
         return Err(EnvzError::Keychain(
-            "Touch ID not available. Use --no-biometric to initialize without it.".into(),
+            "Touch ID is required but not available on this system.".into(),
         ));
     }
 
     let data = match file {
         Some(ref path) => {
-            let contents = fs::read_to_string(path)
-                .map_err(|e| EnvzError::ParseError(format!("Cannot read '{path}': {e}")))?;
+            let contents = fs::read_to_string(path).map_err(|e| {
+                EnvzError::ParseError(format!("Cannot read '{}': {e}", path.display()))
+            })?;
             store::parse_env_file(&contents)?
         }
-        None => HashMap::new(),
+        None => BTreeMap::new(),
     };
 
-    let key = crypto::generate_key();
-    let vault_id = store::compute_vault_id()?;
-    keychain::store_key(&vault_id, &key)?;
+    // Generate a random seed and store it in the keychain.
+    // The actual AES key is derived at runtime via HKDF(seed, codesign_hash || vault_id).
+    let mut seed = crypto::generate_seed();
+    keychain::store_key(store::vault_id(), &seed)?;
 
-    let vault = store::create_vault(&key, &data, biometric_flag, &vault_id)?;
+    let codesign_hash = crate::codesign::signing_identity_hash()?;
+    let mut key = crypto::derive_key(
+        &seed,
+        &codesign_hash,
+        store::vault_id(),
+        &store::app_secret(),
+    )?;
+    seed.zeroize();
+
+    let vault = store::create_vault(&key, &data)?;
+    key.zeroize();
     store::write_vault(&vault)?;
 
     let count = data.len();
-    if biometric_flag {
-        eprintln!("Vault created with Touch ID protection.");
-    } else {
-        eprintln!("Vault created.");
-    }
+    eprintln!("Vault created with Touch ID protection.");
     if count > 0 {
         eprintln!("{count} variable(s) imported.");
         if let Some(ref path) = file {
-            eprintln!("Consider deleting the plaintext file: {path}");
+            let confirm = dialoguer::Confirm::new()
+                .with_prompt(format!("Delete the plaintext file '{}'?", path.display()))
+                .default(true)
+                .interact()
+                .unwrap_or(false);
+            if confirm {
+                fs::remove_file(path)?;
+                eprintln!("Deleted '{}'.", path.display());
+            }
         }
     } else {
         eprintln!("Use `envz set KEY=VALUE` to add secrets.");
