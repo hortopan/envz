@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use zeroize::Zeroize;
 
@@ -10,8 +10,8 @@ use crate::error::{EnvzError, Result};
 use crate::keychain;
 use crate::store;
 
-pub fn execute(file: Option<PathBuf>, force: bool) -> Result<()> {
-    if store::vault_exists() && !force {
+pub fn execute(file: Option<PathBuf>, force: bool, vault_path: Option<&Path>) -> Result<()> {
+    if store::vault_exists(vault_path) && !force {
         return Err(EnvzError::VaultAlreadyExists);
     }
 
@@ -47,7 +47,7 @@ pub fn execute(file: Option<PathBuf>, force: bool) -> Result<()> {
 
     let vault = store::create_vault(&key, &data)?;
     key.zeroize();
-    store::write_vault(&vault)?;
+    store::write_vault(&vault, vault_path)?;
 
     let count = data.len();
     eprintln!("Vault created with Touch ID protection.");

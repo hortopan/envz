@@ -1,14 +1,15 @@
+use std::path::Path;
 use std::process::{self, Command};
 
 use crate::error::{EnvzError, Result};
 use crate::store;
 
-pub fn execute(command: &[String]) -> Result<()> {
+pub fn execute(command: &[String], vault_path: Option<&Path>) -> Result<()> {
     if command.is_empty() {
         return Err(EnvzError::CommandError("No command specified".into()));
     }
 
-    let vault = store::read_vault()?;
+    let vault = store::read_vault(vault_path)?;
     let (data, _) = store::open_vault(&vault)?;
 
     let status = Command::new(&command[0])

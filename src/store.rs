@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
@@ -40,12 +40,15 @@ pub struct VaultFile {
     pub updated_at: String,
 }
 
-pub fn vault_path() -> PathBuf {
-    PathBuf::from(VAULT_FILENAME)
+pub fn resolve_vault_path(custom: Option<&Path>) -> PathBuf {
+    match custom {
+        Some(p) => p.to_path_buf(),
+        None => PathBuf::from(VAULT_FILENAME),
+    }
 }
 
-pub fn vault_exists() -> bool {
-    vault_path().exists()
+pub fn vault_exists(custom_path: Option<&Path>) -> bool {
+    resolve_vault_path(custom_path).exists()
 }
 
 pub fn vault_id() -> &'static str {
@@ -58,8 +61,8 @@ pub fn app_secret() -> String {
     lc_env!("ENVZ_APP_SECRET")
 }
 
-pub fn read_vault() -> Result<VaultFile> {
-    let path = vault_path();
+pub fn read_vault(custom_path: Option<&Path>) -> Result<VaultFile> {
+    let path = resolve_vault_path(custom_path);
     if !path.exists() {
         return Err(EnvzError::VaultNotFound);
     }
@@ -75,9 +78,13 @@ pub fn read_vault() -> Result<VaultFile> {
     Ok(vault)
 }
 
-pub fn write_vault(vault: &VaultFile) -> Result<()> {
-    let path = vault_path();
-    let tmp_path = path.with_file_name(format!(".envz.{}.tmp", std::process::id()));
+pub fn write_vault(vault: &VaultFile, custom_path: Option<&Path>) -> Result<()> {
+    let path = resolve_vault_path(custom_path);
+    let filename = path
+        .file_name()
+        .and_then(|f| f.to_str())
+        .unwrap_or(VAULT_FILENAME);
+    let tmp_path = path.with_file_name(format!("{}.{}.tmp", filename, std::process::id()));
     let data =
         serde_json::to_string_pretty(vault).map_err(|e| EnvzError::InvalidVault(e.to_string()))?;
     fs::write(&tmp_path, &data)?;

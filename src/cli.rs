@@ -19,6 +19,10 @@ use clap::{Parser, Subcommand};
         envz unsafe -- agent    Run untrusted tool without secrets"
 )]
 pub struct Cli {
+    /// Path to the vault file (default: .envz in current directory)
+    #[arg(short = 'v', long = "vault", global = true, env = "ENVZ_VAULT")]
+    pub vault: Option<PathBuf>,
+
     #[command(subcommand)]
     pub command: Commands,
 }

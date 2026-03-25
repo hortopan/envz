@@ -1,12 +1,13 @@
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use dialoguer::Confirm;
 
 use crate::error::{EnvzError, Result};
 use crate::store;
 
-pub fn execute() -> Result<()> {
-    let mut vault = store::read_vault()?;
+pub fn execute(vault_path: Option<&Path>) -> Result<()> {
+    let mut vault = store::read_vault(vault_path)?;
     let (data, master_key) = store::open_vault(&vault)?;
     let count = data.len();
 
@@ -28,7 +29,7 @@ pub fn execute() -> Result<()> {
 
     let empty: BTreeMap<String, String> = BTreeMap::new();
     store::seal_vault(&mut vault, &master_key, &empty)?;
-    store::write_vault(&vault)?;
+    store::write_vault(&vault, vault_path)?;
 
     eprintln!("Vault cleared.");
     Ok(())

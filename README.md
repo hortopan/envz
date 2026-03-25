@@ -86,9 +86,25 @@ source <(envz unenv)
 | `envz unenv` | Output `unset` statements to remove variables |
 | `envz unsafe -- <cmd>` | Run a command with only safe system environment variables |
 
-### Options
+### Global options
 
-- `--force` — overwrite existing vault during `init`
+| Option | Description |
+|---|---|
+| `-v`, `--vault <path>` | Path to the vault file (default: `.envz` in current directory) |
+| `--force` | Overwrite existing vault during `init` |
+
+By default, envz reads and writes a `.envz` file in the current directory. Use `--vault` to point at a different file:
+
+```bash
+# Use a vault in a specific location
+envz --vault ~/secrets/project.envz init
+envz -v ~/secrets/project.envz set API_KEY="sk-secret-key"
+envz -v ~/secrets/project.envz run -- npm start
+
+# Or set it via environment variable
+export ENVZ_VAULT=~/secrets/project.envz
+envz list
+```
 
 ## Security model
 

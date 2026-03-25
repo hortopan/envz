@@ -1,8 +1,10 @@
+use std::path::Path;
+
 use crate::error::{EnvzError, Result};
 use crate::store;
 
-pub fn execute(key: &str) -> Result<()> {
-    let mut vault = store::read_vault()?;
+pub fn execute(key: &str, vault_path: Option<&Path>) -> Result<()> {
+    let mut vault = store::read_vault(vault_path)?;
     let (mut data, master_key) = store::open_vault(&vault)?;
 
     if data.remove(key).is_none() {
@@ -10,7 +12,7 @@ pub fn execute(key: &str) -> Result<()> {
     }
 
     store::seal_vault(&mut vault, &master_key, &data)?;
-    store::write_vault(&vault)?;
+    store::write_vault(&vault, vault_path)?;
 
     eprintln!("Deleted: {key}");
     Ok(())

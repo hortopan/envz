@@ -19,17 +19,19 @@ use cli::{Cli, Commands};
 fn main() {
     let cli = Cli::parse();
 
+    let vault_path = cli.vault.as_deref();
+
     let result = match cli.command {
-        Commands::Init { file, force } => commands::init::execute(file, force),
-        Commands::Run { command } => commands::run::execute(&command),
+        Commands::Init { file, force } => commands::init::execute(file, force, vault_path),
+        Commands::Run { command } => commands::run::execute(&command, vault_path),
         Commands::Unsafe { command } => commands::unsafe_cmd::execute(&command),
-        Commands::Set { pair } => commands::set::execute(&pair),
-        Commands::Get { key } => commands::get::execute(&key),
-        Commands::Delete { key } => commands::delete::execute(&key),
-        Commands::List => commands::list::execute(),
-        Commands::Env => commands::env::execute(),
-        Commands::Unenv => commands::unenv::execute(),
-        Commands::Clear => commands::clear::execute(),
+        Commands::Set { pair } => commands::set::execute(&pair, vault_path),
+        Commands::Get { key } => commands::get::execute(&key, vault_path),
+        Commands::Delete { key } => commands::delete::execute(&key, vault_path),
+        Commands::List => commands::list::execute(vault_path),
+        Commands::Env => commands::env::execute(vault_path),
+        Commands::Unenv => commands::unenv::execute(vault_path),
+        Commands::Clear => commands::clear::execute(vault_path),
     };
 
     if let Err(e) = result {
