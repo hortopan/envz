@@ -31,10 +31,23 @@ pub fn execute(file: Option<PathBuf>, force: bool, vault_path: Option<&Path>) ->
         None => BTreeMap::new(),
     };
 
-    // Generate a random seed and store it in the keychain.
+    // Reuse existing seed from keychain if available, otherwise generate a new one.
+    // This allows multiple vaults to share a single keychain entry.
     // The actual AES key is derived at runtime via HKDF(seed, codesign_hash || vault_id).
-    let mut seed = crypto::generate_seed();
-    keychain::store_key(store::vault_id(), &seed)?;
+    let mut seed = match keychain::retrieve_key(store::vault_id()) {
+        Ok(existing) => {
+            let s: [u8; 32] = existing
+                .as_slice()
+                .try_into()
+                .map_err(|_| EnvzError::Keychain("Invalid seed length".into()))?;
+            s
+        }
+        Err(_) => {
+            let s = crypto::generate_seed();
+            keychain::store_key(store::vault_id(), &s)?;
+            s
+        }
+    };
 
     let codesign_hash = crate::codesign::signing_identity_hash()?;
     let mut key = crypto::derive_key(

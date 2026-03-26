@@ -42,6 +42,7 @@ pub struct VaultFile {
 
 pub fn resolve_vault_path(custom: Option<&Path>) -> PathBuf {
     match custom {
+        Some(p) if p.is_dir() => p.join(VAULT_FILENAME),
         Some(p) => p.to_path_buf(),
         None => PathBuf::from(VAULT_FILENAME),
     }
